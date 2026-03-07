@@ -1,0 +1,17 @@
+{
+  "name": "harness-engineering",
+  "version": "0.1.0",
+  "description": "Dual-track workflow plugin for Claude Code: Track 1 (surgical fixes) and Track 2 (spec-driven features). Enforces TDD, context budgets, PTC scripts, and micro-task decomposition via the MACHINE framework.",
+  "author": {
+    "name": "Emin Genc"
+  },
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "harness",
+    "tdd",
+    "planning",
+    "context-management",
+    "ptc"
+  ]
+}

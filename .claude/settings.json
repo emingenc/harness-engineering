@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 skills/*/scripts/*.py:*)",
+      "Bash(python3 scripts/*.py:*)"
+    ]
+  }
+}

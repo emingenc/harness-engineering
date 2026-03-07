@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tasks",
+  "description": "Micro-task list generated from an annotated design.md by /split",
+  "type": "object",
+  "required": ["design", "tasks"],
+  "properties": {
+    "design": {
+      "type": "string",
+      "description": "Path to the source design document"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this task list was generated"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "scope", "status", "files", "verification"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^T[0-9]{3}$",
+            "description": "Task ID (T001, T002, ...)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Brief imperative description"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed task specification"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["S", "M", "L"],
+            "description": "S=small (<30min), M=medium (30-90min), L=large (break down further)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed", "blocked", "skipped"],
+            "description": "Current task status"
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^T[0-9]{3}$"
+            },
+            "description": "Task IDs that must complete before this task"
+          },
+          "files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Files this task will create or modify"
+          },
+          "verification": {
+            "type": "object",
+            "required": ["command", "expected"],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "Command to verify task completion"
+              },
+              "expected": {
+                "type": "string",
+                "description": "Expected output or behavior"
+              }
+            }
+          },
+          "annotations": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Human annotations from design.md relevant to this task"
+          },
+          "commit_sha": {
+            "type": "string",
+            "description": "Git commit SHA after task completion"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this task was completed"
+          }
+        }
+      }
+    }
+  }
+}
