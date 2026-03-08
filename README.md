@@ -366,7 +366,7 @@ This plugin synthesizes ideas from:
 - **[OpenAI: Harness Engineering](https://openai.com/index/harness-engineering/)** — Context budget research (~40% degradation threshold)
 - **[Boris Tane: Spec-Driven Claude Code](https://boristane.com/blog/how-i-use-claude-code/)** — The annotation-driven planning loop
 - **[shanraisshan/claude-code-best-practice](https://github.com/shanraisshan/claude-code-best-practice)** — Plugin structure, command/skill patterns
-- **MACHINE Framework** — Mapping, Agents, Context, Harness, Intuition, Natural Language, Engineering
+- **[MACHINE Framework](https://www.youtube.com/watch?v=RFrPCabHx7M)** — Mapping, Agents, Context, Harness, Intuition, Natural Language, Engineering (excellent channel, highly recommended)
 
 ---
 
