@@ -230,13 +230,23 @@ Every skill in this plugin has dedicated PTC scripts. Data stays in the Python s
 
 ### Install
 
-Clone into your project or Claude Code plugins directory:
+Add the marketplace and install:
 
-```bash
-git clone https://github.com/YOUR_USERNAME/harness-engineering.git
+```
+/plugin marketplace add emingenc/harness-engineering
+/plugin install harness-engineering@harness-engineering
 ```
 
-The `.claude-plugin/plugin.json` manifest enables auto-discovery. Claude Code will find all commands, skills, and hooks automatically on next session start.
+Or from the CLI:
+
+```bash
+claude plugin marketplace add emingenc/harness-engineering
+claude plugin install harness-engineering@harness-engineering
+```
+
+By default plugins install to **user** scope (all projects). Use `--scope project` to share with your team or `--scope local` for project-only.
+
+All commands, skills, and hooks are auto-discovered on next session start.
 
 ### Track 1: Fix Something
 
