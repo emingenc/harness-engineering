@@ -37,7 +37,7 @@ def validate(design_path: str) -> dict:
     missing_sections = []
     for section in REQUIRED_SECTIONS:
         # Look for section header (## or ###)
-        pattern = rf"^#{1,3}\s+.*{re.escape(section)}"
+        pattern = rf"^#{{1,3}}\s+.*{re.escape(section)}"
         if not re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
             missing_sections.append(section)
 

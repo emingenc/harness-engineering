@@ -2,6 +2,7 @@
 workspace/
 *.pyc
 __pycache__/
+.pytest_cache/
 
 # OS files
 .DS_Store

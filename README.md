@@ -89,6 +89,50 @@ graph LR
 
 Each layer contains the previous. Prompt engineering alone can't save you from context rot. Context engineering alone can't enforce TDD. You need the full harness.
 
+### Think of It Like Water Bottles
+
+```mermaid
+graph LR
+    subgraph PE_COL["Prompt Engineering"]
+        direction TB
+        POUR["Pour water<br/><small>craft tokens</small>"]
+        BOTTLE1["🫙 One bottle"]
+    end
+
+    subgraph CE_COL["Context Engineering"]
+        direction TB
+        LEVEL["Monitor fill level<br/><small>manage utilization</small>"]
+        BOTTLE2["🫙 One bottle<br/>━━ 50% line ━━"]
+        QZ1["✓ Quality zone"]
+    end
+
+    subgraph HE_COL["Harness Engineering"]
+        direction TB
+        FACTORY["The factory"]
+        B1["🫙 50%"]
+        B2["🫙 50%"]
+        B3["🫙 50%"]
+        QZ2["✓ All in quality zone"]
+    end
+
+    PE_COL --> CE_COL --> HE_COL
+
+    style PE_COL fill:#dbeafe,stroke:#2563eb,color:#1e3a5f
+    style CE_COL fill:#ede9fe,stroke:#7c3aed,color:#3b1d6e
+    style HE_COL fill:#fef3c7,stroke:#d97706,color:#78350f
+    style QZ1 fill:#dcfce7,stroke:#16a34a,color:#14532d
+    style QZ2 fill:#dcfce7,stroke:#16a34a,color:#14532d
+```
+
+| Concept | Water Analogy | In Practice |
+|---|---|---|
+| **Water** | Tokens | Prompts, tool outputs, file contents |
+| **Bottle** | Context window | The model's working memory |
+| **Fill level** | Utilization % | Must stay under 50% (quality zone) |
+| **The factory** | Harness | Sub-agents (parallel bottles), PTC, micro-tasks, track routing |
+
+> **Key insight**: Prompt and context engineering optimize a single bottle. Harness engineering decides how many bottles you need, fills them asynchronously, and enforces the half-capacity rule so every bottle stays in the quality zone.
+
 ---
 
 ## The Solution: Spec-Driven Development
