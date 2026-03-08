@@ -351,6 +351,7 @@ harness-engineering/
 │   ├── architecture.md
 │   ├── conventions.md
 │   ├── ptc-guide.md
+│   ├── tutorials.md              # Step-by-step use case guides
 │   └── templates/
 ├── claude-progress.txt           # Append-only session log
 └── tasks.json                    # Active micro-task list
@@ -399,6 +400,23 @@ graph TD
 ```
 
 You are always the final arbiter. Claude manages execution. Sub-agents do isolated work with fresh context. This hierarchy prevents the model from making unsupervised architectural decisions.
+
+---
+
+## Tutorials
+
+Step-by-step guides for common workflows. See **[docs/tutorials.md](docs/tutorials.md)** for the full walkthroughs.
+
+| Tutorial | Track | What You'll Learn |
+|----------|-------|-------------------|
+| **Fix a Bug** | 1 | Scope check, PTC-assisted grep, minimal fix |
+| **Build a Feature** | 2 | Full research → plan → annotate → split → execute cycle |
+| **Resume After a Break** | - | `/status` and `/handoff` for session recovery |
+| **Create a Custom Skill** | - | `/new-skill` with PTC scripts and auto-discovery |
+| **Improve a Prompt** | - | Analyze weak prompts, get scored suggestions |
+| **Debug a Stuck Session** | - | 2-Pass Rule, state logging, fresh approach |
+| **Verify Plugin Integrity** | - | Structural checks across skills, commands, and manifests |
+| **Multi-Session Feature** | 2 | Context handoff across 3-4 sessions |
 
 ---
 
