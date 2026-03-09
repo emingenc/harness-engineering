@@ -528,6 +528,72 @@ Overall: 1/3 tasks (33%)
 
 ---
 
+## Tutorial 11: Migration and Parallel Execution
+
+**Scenario**: You have a v1 tasks.json from an older session and want to upgrade it and run tasks in parallel.
+
+### Step 1: Migrate to v2 Schema
+
+```
+> python3 scripts/migrate_tasks.py tasks.json
+{
+  "status": "migrated",
+  "schema_version": "2",
+  "tasks_migrated": 5
+}
+```
+
+This adds timing fields, attempt tracking, and test metrics to each task.
+
+### Step 2: Launch Parallel Workers
+
+Open multiple terminals and start Claude in separate worktrees:
+
+```bash
+# Terminal 1
+claude --worktree worker-1
+> /auto
+
+# Terminal 2
+claude --worktree worker-2
+> /auto
+
+# Terminal 3
+claude --worktree worker-3
+> /auto
+```
+
+Each session atomically claims the next available task via file locking. No two sessions pick the same task.
+
+### Step 3: Monitor Progress
+
+In any terminal:
+```
+> /dashboard
+```
+
+The dashboard reads shared `tasks.json` and shows which tasks are completed, in-progress, and pending.
+
+### Step 4: Merge Results
+
+After all tasks complete, merge worktree branches back to main:
+```bash
+git merge worktree-worker-1
+git merge worktree-worker-2
+git merge worktree-worker-3
+```
+
+### Step 5: Compare Design Revisions
+
+If you revised the design between splits:
+```
+> python3 scripts/plan_diff.py workspace/designs/design-v1.md workspace/designs/design-v2.md
+```
+
+Shows sections changed, annotations added/removed, and task count delta.
+
+---
+
 ### Pattern: When you disagree with the plan
 
 After `/plan`, if the design doc doesn't match your vision:
