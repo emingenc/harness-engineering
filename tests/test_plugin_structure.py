@@ -67,6 +67,7 @@ class TestPTCScripts:
         "scripts/auto_summary.py",
         "scripts/migrate_tasks.py",
         "scripts/plan_diff.py",
+        "scripts/task_lock.py",
         "skills/small-fix/scripts/scope_check.py",
         "skills/small-fix/scripts/grep_context.py",
         "skills/researcher/scripts/search_local.py",

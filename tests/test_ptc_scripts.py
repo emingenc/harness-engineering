@@ -397,6 +397,19 @@ class TestSplitTasks:
                 assert "py_compile" in task["verification"]["command"]
                 break
 
+    def test_auto_verification_table_format(self, work_dir):
+        """Verification Strategy in table format yields concrete commands."""
+        design_path = FIXTURES_DIR / "sample-design-v2.md"
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        data = json.loads((work_dir / "tasks.json").read_text())
+        # At least one task should get a command from the table
+        has_table_cmd = False
+        for task in data["tasks"]:
+            cmd = task["verification"]["command"]
+            if "pytest" in cmd and "test_auth" in cmd:
+                has_table_cmd = True
+        assert has_table_cmd, "Expected table-format verification to produce pytest command"
+
 
 # ─── skills/task-splitter/scripts/validate_tasks.py ─────────────────────
 
