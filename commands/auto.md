@@ -1,8 +1,9 @@
 ---
-name: auto
 description: Auto-execute Track 2 tasks with HIL-only pauses
-tools:
+allowed-tools:
   - Bash
+  - Bash(python3 skills/executor/scripts/*.py:*)
+  - Bash(python3 scripts/*.py:*)
   - Read
   - Edit
   - Write
