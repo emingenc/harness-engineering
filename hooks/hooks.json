@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress.py summary 2>/dev/null || echo '{\"count\": 0}'",
+            "command": "mkdir -p workspace/designs workspace/research 2>/dev/null; python3 ${CLAUDE_PLUGIN_ROOT}/scripts/progress.py summary 2>/dev/null || echo '{\"count\": 0}'",
             "timeout": 10
           },
           {
