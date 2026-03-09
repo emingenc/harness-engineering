@@ -92,7 +92,7 @@ Each layer contains the previous. Prompt engineering alone can't save you from c
 ### Think of It Like Water Bottles
 
 ```mermaid
-graph LR
+graph TB
     subgraph PE_COL["Prompt Engineering"]
         direction TB
         POUR["Pour water<br/><small>craft tokens</small>"]
