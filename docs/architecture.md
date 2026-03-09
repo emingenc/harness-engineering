@@ -168,3 +168,44 @@ Any new session can reconstruct state from:
 - `workspace/designs/` — active design documents
 
 Cross-reference these sources to verify claimed state matches reality.
+
+## Migration (v1 → v2)
+
+`scripts/migrate_tasks.py` upgrades a v1 tasks.json to v2 schema in place:
+
+```bash
+python3 scripts/migrate_tasks.py tasks.json
+```
+
+Adds: `schema_version: "2"`, `attempt_count: 0`, `estimated_minutes`, empty arrays for `retry_history`, `cove_findings`. Idempotent — already-v2 files are skipped.
+
+## Plan Versioning and Diffing
+
+When `/split` is run against an existing tasks.json:
+1. `plan_version` is incremented
+2. Completed task statuses are preserved
+3. Previous split is recorded in `plan_history`
+
+Compare two design documents:
+```bash
+python3 scripts/plan_diff.py design-v1.md design-v2.md
+```
+
+Returns: sections changed/added/removed, annotation count delta, task count delta.
+
+## Parallel Execution Architecture
+
+Multiple Claude sessions can execute tasks concurrently via git worktrees:
+
+```
+Main repo (tasks.json, .tasks.lock)
+├── .claude/worktrees/worker-1/  ← worktree branch
+├── .claude/worktrees/worker-2/  ← worktree branch
+└── .claude/worktrees/worker-3/  ← worktree branch
+```
+
+`scripts/task_lock.py` provides `locked_tasks_json()` context manager:
+- `fcntl.flock` exclusive lock on `.tasks.lock`
+- 30s timeout with retry
+- Worktree-aware: follows `.git` file to resolve main repo's tasks.json
+- Used by `select_next.py`, `mark_complete.py`, and `split_tasks.py`
