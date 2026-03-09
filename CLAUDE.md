@@ -48,13 +48,40 @@ See `docs/ptc-guide.md` for patterns.
 - `skills/*/scripts/*.py` — per-skill PTC scripts
 - `scripts/*.py` — shared PTC scripts
 
+**Shared scripts** (`scripts/`):
+| Script | Purpose |
+|--------|---------|
+| `progress.py` | Append-only progress log with JSONL dual-write and query |
+| `context_tracker.py` | Context budget estimation and warning levels |
+| `dashboard.py` | Task dashboard with dependency graphs and metrics |
+| `auto_summary.py` | Completion summary for auto-loop |
+| `migrate_tasks.py` | Migrate tasks.json from v1 to v2 schema |
+| `plan_diff.py` | Compare two design documents |
+| `task_lock.py` | File locking for parallel-safe task execution |
+
 ## Context Management Rules
 
 1. **Budget**: Stay under 50% context utilization
-2. **Sub-agents**: Use for parallel research (fresh context each)
-3. **PTC scripts**: Process data in Python, return JSON summaries only
-4. **Compaction**: Use `/handoff` before context limit
-5. **Hard clear**: After task completion + commit, context can be cleared
+2. **Auto-check**: `scripts/context_tracker.py` runs in `/execute` and `/auto` pre-flight
+3. **Sub-agents**: Use for parallel research (fresh context each)
+4. **PTC scripts**: Process data in Python, return JSON summaries only
+5. **Compaction**: Use `/handoff` before context limit
+6. **Hard clear**: After task completion + commit, context can be cleared
+
+## Parallel Execution (Worktrees)
+
+Multiple Claude sessions can execute tasks concurrently using git worktrees:
+
+```bash
+claude --worktree worker-1    # Terminal 1
+claude --worktree worker-2    # Terminal 2
+> /auto                       # Each session picks the next available task
+```
+
+- `tasks.json` is shared state in the main repo
+- `scripts/task_lock.py` provides `fcntl.flock`-based locking (`.tasks.lock`)
+- `select_next.py` atomically claims tasks — no duplicates across sessions
+- Each worktree has its own branch; merge back when ready
 
 ## Debugging: 2-Pass Rule
 
