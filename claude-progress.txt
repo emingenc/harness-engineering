@@ -1,2 +1,0 @@
-[2026-03-07T22:12:33Z] Session 1 complete: foundation layer created
-[2026-03-07T22:49:56Z] Session 2: completed hooks (UserPromptSubmit, PreCompact), workspace dirs, end-to-end verification of all 12 PTC scripts

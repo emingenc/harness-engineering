@@ -30,4 +30,5 @@ context/
 
 claude-progress.*
 .tasks.lock
+tasks.json
 .claude/worktrees/
