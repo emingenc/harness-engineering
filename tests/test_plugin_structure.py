@@ -25,6 +25,7 @@ class TestCommands:
     EXPECTED_COMMANDS = [
         "fix", "research", "plan", "split", "execute",
         "new-skill", "handoff", "status", "verify",
+        "auto", "dashboard",
     ]
 
     def test_all_command_files_exist(self):
@@ -61,6 +62,11 @@ class TestSkills:
 class TestPTCScripts:
     PTC_SCRIPTS = [
         "scripts/progress.py",
+        "scripts/context_tracker.py",
+        "scripts/dashboard.py",
+        "scripts/auto_summary.py",
+        "scripts/migrate_tasks.py",
+        "scripts/plan_diff.py",
         "skills/small-fix/scripts/scope_check.py",
         "skills/small-fix/scripts/grep_context.py",
         "skills/researcher/scripts/search_local.py",

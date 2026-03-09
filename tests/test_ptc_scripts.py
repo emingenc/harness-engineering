@@ -1,4 +1,4 @@
-"""Tests for all 12 PTC scripts."""
+"""Tests for all PTC scripts."""
 import json
 import shutil
 from pathlib import Path
@@ -49,6 +49,70 @@ class TestProgress:
         assert result["count"] == 2
         assert "Alpha" in result["first"]
         assert "Beta" in result["last"]
+
+
+# ─── scripts/progress.py (structured) ───────────────────────────────────
+
+class TestProgressStructured:
+    SCRIPT = "scripts/progress.py"
+
+    def test_append_structured_creates_jsonl(self, work_dir):
+        result = run_script(
+            self.SCRIPT, "append-structured",
+            "--action", "session_start",
+            "Session started",
+            cwd=str(work_dir),
+        )
+        assert "appended" in result
+        assert result["appended"]["action"] == "session_start"
+        assert (work_dir / "claude-progress.jsonl").exists()
+        # Also writes to text log
+        assert (work_dir / "claude-progress.txt").exists()
+
+    def test_append_structured_with_task_id(self, work_dir):
+        result = run_script(
+            self.SCRIPT, "append-structured",
+            "--action", "task_complete",
+            "--task-id", "T001",
+            "--phase", "execute",
+            "--track", "2",
+            "--details", '{"commit_sha": "abc123"}',
+            "Completed T001",
+            cwd=str(work_dir),
+        )
+        entry = result["appended"]
+        assert entry["action"] == "task_complete"
+        assert entry["task_id"] == "T001"
+        assert entry["phase"] == "execute"
+        assert entry["track"] == 2
+        assert entry["details"]["commit_sha"] == "abc123"
+
+    def test_append_structured_invalid_action(self, work_dir):
+        result = run_script(
+            self.SCRIPT, "append-structured",
+            "--action", "invalid_action",
+            "test",
+            cwd=str(work_dir),
+        )
+        assert "error" in result
+
+    def test_query_by_task_id(self, work_dir, sample_progress_jsonl):
+        result = run_script(self.SCRIPT, "query", "--task-id", "T001", cwd=str(work_dir))
+        assert result["count"] == 1
+        assert result["entries"][0]["task_id"] == "T001"
+
+    def test_query_by_action(self, work_dir, sample_progress_jsonl):
+        result = run_script(self.SCRIPT, "query", "--action", "task_complete", cwd=str(work_dir))
+        assert result["count"] == 2
+
+    def test_query_by_since(self, work_dir, sample_progress_jsonl):
+        result = run_script(self.SCRIPT, "query", "--since", "2026-03-08T10:06:00Z", cwd=str(work_dir))
+        assert result["count"] == 1
+        assert result["entries"][0]["task_id"] == "T002"
+
+    def test_query_empty(self, work_dir):
+        result = run_script(self.SCRIPT, "query", "--task-id", "T999", cwd=str(work_dir))
+        assert result["count"] == 0
 
 
 # ─── skills/small-fix/scripts/scope_check.py ────────────────────────────
@@ -196,6 +260,27 @@ class TestValidatePlan:
         assert result["valid"] is False
         assert "error" in result
 
+    def test_diff_mode(self):
+        result = run_script(
+            self.SCRIPT,
+            str(FIXTURES_DIR / "sample-design.md"),
+            "--diff",
+            str(FIXTURES_DIR / "sample-design-v2.md"),
+        )
+        assert "design1" in result
+        assert "design2" in result
+        assert "annotation_count_delta" in result
+        assert "task_count_delta" in result
+
+    def test_diff_nonexistent(self):
+        result = run_script(
+            self.SCRIPT,
+            str(FIXTURES_DIR / "sample-design.md"),
+            "--diff",
+            "/nonexistent/design.md",
+        )
+        assert "error" in result
+
 
 # ─── skills/task-splitter/scripts/split_tasks.py ────────────────────────
 
@@ -222,6 +307,60 @@ class TestSplitTasks:
     def test_nonexistent_file(self, work_dir):
         result = run_script(self.SCRIPT, "/nonexistent/design.md", cwd=str(work_dir))
         assert "error" in result
+
+    def test_v2_output_schema_version(self, work_dir):
+        """Verify split produces schema_version 2 output."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        result = run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        assert result["schema_version"] == "2"
+        assert result["plan_version"] == 1
+        # Check tasks.json content
+        data = json.loads((work_dir / "tasks.json").read_text())
+        assert data["schema_version"] == "2"
+        assert data["plan_version"] == 1
+        assert len(data["plan_history"]) == 1
+
+    def test_v2_estimated_minutes(self, work_dir):
+        """Verify tasks have estimated_minutes based on scope."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        data = json.loads((work_dir / "tasks.json").read_text())
+        for task in data["tasks"]:
+            assert "estimated_minutes" in task
+            if task["scope"] == "S":
+                assert task["estimated_minutes"] == 15
+            elif task["scope"] == "M":
+                assert task["estimated_minutes"] == 60
+
+    def test_v2_files_populated(self, work_dir):
+        """Verify file changes from design are mapped to tasks."""
+        design_path = FIXTURES_DIR / "sample-design-v2.md"
+        result = run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        assert result["file_changes_found"] > 0
+        assert result["files_populated"] > 0
+        data = json.loads((work_dir / "tasks.json").read_text())
+        files_with_content = [t for t in data["tasks"] if t["files"]]
+        assert len(files_with_content) > 0
+
+    def test_resplit_increments_plan_version(self, work_dir):
+        """Verify re-split increments plan_version and preserves completed."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        # First split
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        # Mark T001 as completed
+        data = json.loads((work_dir / "tasks.json").read_text())
+        data["tasks"][0]["status"] = "completed"
+        data["tasks"][0]["commit_sha"] = "abc123"
+        (work_dir / "tasks.json").write_text(json.dumps(data))
+        # Re-split
+        result = run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        assert result["plan_version"] == 2
+        # Check completed task preserved
+        data = json.loads((work_dir / "tasks.json").read_text())
+        assert data["plan_version"] == 2
+        assert len(data["plan_history"]) == 2
+        assert data["tasks"][0]["status"] == "completed"
+        assert data["tasks"][0]["commit_sha"] == "abc123"
 
 
 # ─── skills/task-splitter/scripts/validate_tasks.py ─────────────────────
@@ -274,6 +413,49 @@ class TestValidateTasks:
         assert result["valid"] is False
         assert any("duplicate" in issue.lower() for issue in result["issues"])
 
+    def test_v2_todo_verification_warning(self, work_dir):
+        """Warn when verification commands contain TODO placeholders."""
+        data = {
+            "schema_version": "2",
+            "design": "d.md",
+            "tasks": [{
+                "id": "T001", "title": "Test", "scope": "S", "status": "pending",
+                "files": [], "verification": {
+                    "command": "echo 'TODO: add verification command'",
+                    "expected": "TODO: define expected output",
+                },
+            }],
+        }
+        path = work_dir / "tasks.json"
+        path.write_text(json.dumps(data))
+        result = run_script(self.SCRIPT, str(path))
+        assert result["valid"] is True  # TODOs are warnings, not errors
+        assert len(result["warnings"]) >= 2
+        assert any("TODO" in w for w in result["warnings"])
+
+    def test_v2_empty_files_warning(self, work_dir):
+        """Warn on empty files arrays."""
+        data = {
+            "schema_version": "2",
+            "design": "d.md",
+            "tasks": [{
+                "id": "T001", "title": "Test", "scope": "S", "status": "pending",
+                "files": [], "verification": {"command": "pytest", "expected": "passed"},
+            }],
+        }
+        path = work_dir / "tasks.json"
+        path.write_text(json.dumps(data))
+        result = run_script(self.SCRIPT, str(path))
+        assert any("files array is empty" in w for w in result["warnings"])
+
+    def test_v2_quality_metrics(self, sample_tasks_v2_json):
+        """Verify quality metrics in v2 output."""
+        result = run_script(self.SCRIPT, str(sample_tasks_v2_json))
+        assert result["schema_version"] == "2"
+        assert "quality_metrics" in result
+        assert result["quality_metrics"]["tasks_with_timing"] >= 1
+        assert result["quality_metrics"]["tasks_with_tests"] >= 1
+
 
 # ─── skills/executor/scripts/select_next.py ─────────────────────────────
 
@@ -317,6 +499,31 @@ class TestSelectNext:
         assert result["status"] == "blocked"
         assert "T002" in result["blocked_tasks"]
 
+    def test_sets_started_at_and_in_progress(self, sample_tasks_json):
+        """Verify select_next sets started_at and status to in_progress."""
+        result = run_script(self.SCRIPT, str(sample_tasks_json))
+        assert result["task"]["id"] == "T001"
+        # Read back tasks.json to verify
+        data = json.loads(sample_tasks_json.read_text())
+        task = data["tasks"][0]
+        assert task["status"] == "in_progress"
+        assert "started_at" in task
+        assert task["started_at"] is not None
+
+    def test_estimated_minutes_in_output(self, work_dir):
+        """Verify estimated_minutes is included in output."""
+        data = {
+            "design": "d.md",
+            "tasks": [{
+                "id": "T001", "title": "A", "scope": "S", "status": "pending",
+                "depends_on": [], "files": [], "verification": {"command": "x", "expected": "y"},
+                "estimated_minutes": 15,
+            }],
+        }
+        (work_dir / "tasks.json").write_text(json.dumps(data))
+        result = run_script(self.SCRIPT, str(work_dir / "tasks.json"))
+        assert result["task"]["estimated_minutes"] == 15
+
 
 # ─── skills/executor/scripts/mark_complete.py ───────────────────────────
 
@@ -347,6 +554,240 @@ class TestMarkComplete:
         assert result["commit_sha"] == "abc123"
         data = json.loads(sample_tasks_json.read_text())
         assert data["tasks"][0]["commit_sha"] == "abc123"
+
+    def test_duration_calculated(self, work_dir):
+        """Verify duration_seconds is calculated from started_at."""
+        data = {
+            "design": "d.md",
+            "tasks": [{
+                "id": "T001", "title": "Test", "scope": "S", "status": "in_progress",
+                "depends_on": [], "files": [],
+                "verification": {"command": "x", "expected": "y"},
+                "started_at": "2026-03-08T10:00:00+00:00",
+            }],
+        }
+        (work_dir / "tasks.json").write_text(json.dumps(data))
+        result = run_script(self.SCRIPT, "T001", cwd=str(work_dir))
+        assert result["duration_seconds"] is not None
+        assert result["duration_seconds"] > 0
+
+    def test_attempt_count_incremented(self, sample_tasks_json, work_dir):
+        """Verify attempt_count is incremented."""
+        result = run_script(self.SCRIPT, "T001", cwd=str(work_dir))
+        assert result["attempt_count"] == 1
+        data = json.loads(sample_tasks_json.read_text())
+        assert data["tasks"][0]["attempt_count"] == 1
+        assert len(data["tasks"][0]["retry_history"]) == 1
+        assert data["tasks"][0]["retry_history"][0]["outcome"] == "success"
+
+    def test_tests_and_cove_recorded(self, sample_tasks_json, work_dir):
+        """Verify test counts and cove findings are recorded."""
+        result = run_script(
+            self.SCRIPT, "T001",
+            "--tests-written", "5",
+            "--tests-passed", "4",
+            "--cove-findings", '["Edge case: null input not handled"]',
+            cwd=str(work_dir),
+        )
+        assert result["tests_written"] == 5
+        assert result["tests_passed"] == 4
+        data = json.loads(sample_tasks_json.read_text())
+        assert data["tasks"][0]["tests_written"] == 5
+        assert data["tasks"][0]["tests_passed"] == 4
+        assert len(data["tasks"][0]["cove_findings"]) == 1
+
+    def test_structured_progress_entry(self, sample_tasks_json, work_dir):
+        """Verify structured JSONL entry is written."""
+        run_script(self.SCRIPT, "T001", "--commit-sha", "xyz789", cwd=str(work_dir))
+        assert (work_dir / "claude-progress.jsonl").exists()
+        lines = (work_dir / "claude-progress.jsonl").read_text().strip().split("\n")
+        entry = json.loads(lines[-1])
+        assert entry["action"] == "task_complete"
+        assert entry["task_id"] == "T001"
+        assert entry["details"]["commit_sha"] == "xyz789"
+
+
+# ─── scripts/context_tracker.py ─────────────────────────────────────────
+
+class TestContextTracker:
+    SCRIPT = "scripts/context_tracker.py"
+
+    def test_estimate_empty(self, work_dir):
+        result = run_script(self.SCRIPT, "estimate", cwd=str(work_dir))
+        assert result["estimated_tokens"] >= 3000  # base overhead
+        assert result["tasks_this_session"] == 0
+
+    def test_check_ok_level(self, work_dir):
+        result = run_script(self.SCRIPT, "check", cwd=str(work_dir))
+        assert result["warning_level"] == "ok"
+        assert result["recommendation"] is None
+
+    def test_estimate_with_progress(self, work_dir, sample_progress_jsonl):
+        result = run_script(self.SCRIPT, "estimate", cwd=str(work_dir))
+        assert result["tasks_this_session"] == 2
+        assert result["estimated_tokens"] > 3000
+
+    def test_check_warning_levels(self, work_dir):
+        """Verify warning thresholds work correctly."""
+        # Create a JSONL with many task completions to push utilization up
+        jsonl_path = work_dir / "claude-progress.jsonl"
+        entries = [{"timestamp": "2026-03-08T10:00:00Z", "action": "session_start", "message": "Start"}]
+        # Add enough L-scope task completions to push over 50%
+        tasks_data = {"design": "d.md", "tasks": []}
+        for i in range(5):
+            tid = f"T{i+1:03d}"
+            entries.append({
+                "timestamp": f"2026-03-08T1{i}:00:00Z",
+                "action": "task_complete",
+                "task_id": tid,
+                "message": f"Completed {tid}",
+            })
+            tasks_data["tasks"].append({
+                "id": tid, "title": f"Task {i}", "scope": "L",
+                "status": "completed", "files": [],
+                "verification": {"command": "x", "expected": "y"},
+            })
+
+        with open(jsonl_path, "w") as f:
+            for entry in entries:
+                f.write(json.dumps(entry) + "\n")
+        (work_dir / "tasks.json").write_text(json.dumps(tasks_data))
+
+        result = run_script(self.SCRIPT, "check", cwd=str(work_dir))
+        # 5 L-scope tasks = 150k tokens + overhead → should be warning or critical
+        assert result["warning_level"] in ("warning", "critical")
+        assert result["recommendation"] is not None
+
+
+# ─── scripts/dashboard.py ───────────────────────────────────────────────
+
+class TestDashboard:
+    SCRIPT = "scripts/dashboard.py"
+
+    def test_full_dashboard(self, sample_tasks_v2_json):
+        result = run_script(self.SCRIPT, "full", str(sample_tasks_v2_json))
+        assert "dependency_graph_mermaid" in result
+        assert "progress_bars" in result
+        assert "quality_metrics" in result
+        assert "velocity" in result
+        assert "overall_progress" in result
+        assert "graph TD" in result["dependency_graph_mermaid"]
+
+    def test_graph_only(self, sample_tasks_v2_json):
+        result = run_script(self.SCRIPT, "graph", str(sample_tasks_v2_json))
+        assert "dependency_graph_mermaid" in result
+        assert "T001" in result["dependency_graph_mermaid"]
+
+    def test_velocity(self, sample_tasks_v2_json):
+        result = run_script(self.SCRIPT, "velocity", str(sample_tasks_v2_json))
+        assert "velocity" in result
+        assert result["velocity"]["completed_count"] == 1
+        assert result["velocity"]["remaining_count"] == 2
+
+    def test_progress_bars(self, sample_tasks_v2_json):
+        result = run_script(self.SCRIPT, "full", str(sample_tasks_v2_json))
+        bars = result["progress_bars"]
+        assert len(bars) == 3
+        completed_bar = next(b for b in bars if b["id"] == "T001")
+        assert completed_bar["percent"] == 100
+        pending_bar = next(b for b in bars if b["id"] == "T003")
+        assert pending_bar["percent"] == 0
+
+    def test_no_file_error(self, work_dir):
+        result = run_script(self.SCRIPT, "full", str(work_dir / "nonexistent.json"))
+        assert "error" in result
+
+
+# ─── scripts/auto_summary.py ────────────────────────────────────────────
+
+class TestAutoSummary:
+    SCRIPT = "scripts/auto_summary.py"
+
+    def test_summary_with_completed_tasks(self, sample_tasks_v2_json, work_dir):
+        # Mark all tasks complete in the fixture
+        data = json.loads(sample_tasks_v2_json.read_text())
+        for task in data["tasks"]:
+            task["status"] = "completed"
+            task["duration_seconds"] = 600
+            task["attempt_count"] = 1
+            task["tests_written"] = 3
+            task["tests_passed"] = 3
+        sample_tasks_v2_json.write_text(json.dumps(data))
+
+        result = run_script(self.SCRIPT, str(sample_tasks_v2_json))
+        assert result["status"] == "all_complete"
+        assert result["tasks_completed"] == 3
+        assert result["total_duration_seconds"] > 0
+        assert result["total_tests_written"] == 9
+
+    def test_summary_no_file(self, work_dir):
+        result = run_script(self.SCRIPT, str(work_dir / "tasks.json"))
+        assert "error" in result
+
+
+# ─── scripts/migrate_tasks.py ───────────────────────────────────────────
+
+class TestMigrateTasks:
+    SCRIPT = "scripts/migrate_tasks.py"
+
+    def test_migrate_v1_to_v2(self, sample_tasks_json):
+        """Migrate a v1 tasks.json to v2."""
+        result = run_script(self.SCRIPT, str(sample_tasks_json))
+        assert result["status"] == "migrated"
+        assert result["schema_version"] == "2"
+        assert result["tasks_migrated"] == 3
+        # Verify file content
+        data = json.loads(sample_tasks_json.read_text())
+        assert data["schema_version"] == "2"
+        for task in data["tasks"]:
+            assert "attempt_count" in task
+            assert "retry_history" in task
+            assert "cove_findings" in task
+            assert "estimated_minutes" in task
+
+    def test_migrate_already_v2(self, sample_tasks_v2_json):
+        """Already v2 should be a no-op."""
+        result = run_script(self.SCRIPT, str(sample_tasks_v2_json))
+        assert result["status"] == "already_v2"
+
+    def test_migrate_no_file(self, work_dir):
+        result = run_script(self.SCRIPT, str(work_dir / "tasks.json"))
+        assert "error" in result
+
+
+# ─── scripts/plan_diff.py ───────────────────────────────────────────────
+
+class TestPlanDiff:
+    SCRIPT = "scripts/plan_diff.py"
+
+    def test_diff_two_designs(self):
+        result = run_script(
+            self.SCRIPT,
+            str(FIXTURES_DIR / "sample-design.md"),
+            str(FIXTURES_DIR / "sample-design-v2.md"),
+        )
+        assert "sections_changed" in result
+        assert "annotation_count_delta" in result
+        assert result["annotation_count_delta"] == 1  # v2 has 3, v1 has 2
+        assert "task_count_delta" in result
+
+    def test_diff_same_file(self):
+        result = run_script(
+            self.SCRIPT,
+            str(FIXTURES_DIR / "sample-design.md"),
+            str(FIXTURES_DIR / "sample-design.md"),
+        )
+        assert result["annotation_count_delta"] == 0
+        assert result["task_count_delta"] == 0
+        assert len(result["sections_changed"]) == 0
+
+    def test_diff_nonexistent(self):
+        result = run_script(
+            self.SCRIPT,
+            str(FIXTURES_DIR / "sample-design.md"),
+            "/nonexistent/design.md",
+        )
+        assert "error" in result
 
 
 # ─── skills/prompt-enhancer/scripts/enhance.py ──────────────────────────

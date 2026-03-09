@@ -12,6 +12,8 @@ from pathlib import Path
 
 TASKS_FILE = Path("tasks.json")
 
+SCOPE_ESTIMATES = {"S": 15, "M": 60, "L": 120}
+
 
 def extract_annotations(content: str) -> list[str]:
     return re.findall(r"<!-- ANNOTATION:\s*(.*?)\s*-->", content)
@@ -50,12 +52,16 @@ def extract_tasks(content: str) -> list[dict]:
                 "expected": "TODO: define expected output",
             },
             "annotations": [],
+            "estimated_minutes": SCOPE_ESTIMATES.get(scope, 60),
+            "attempt_count": 0,
+            "retry_history": [],
+            "cove_findings": [],
         })
 
     return tasks
 
 
-def extract_file_changes(content: str) -> dict[str, list[str]]:
+def extract_file_changes(content: str) -> dict[str, str]:
     """Extract file changes table to associate files with tasks."""
     files = {}
     # Match table rows: | file | change type | description |
@@ -66,6 +72,25 @@ def extract_file_changes(content: str) -> dict[str, list[str]]:
             desc = m.group(3).strip()
             files[filepath] = desc
     return files
+
+
+def associate_files_with_tasks(tasks: list[dict], file_changes: dict[str, str]) -> list[dict]:
+    """Map file changes to tasks by keyword matching against task titles."""
+    for filepath, description in file_changes.items():
+        desc_lower = (description + " " + filepath).lower()
+        best_match = None
+        best_score = 0
+        for task in tasks:
+            title_words = set(task["title"].lower().split())
+            desc_words = set(desc_lower.split())
+            overlap = len(title_words & desc_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_match = task
+        if best_match and best_score > 0:
+            if filepath not in best_match["files"]:
+                best_match["files"].append(filepath)
+    return tasks
 
 
 def build_dependencies(tasks: list[dict]) -> list[dict]:
@@ -120,16 +145,62 @@ def split(design_path: str) -> dict:
             "hint": "Add a 'Micro-Task Breakdown' section with numbered items.",
         }
 
+    # Extract file changes and associate with tasks
+    file_changes = extract_file_changes(content)
+    if file_changes:
+        tasks = associate_files_with_tasks(tasks, file_changes)
+
     # Build dependencies
     tasks = build_dependencies(tasks)
 
     # Associate annotations
     tasks = associate_annotations(tasks, annotations)
 
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    # Handle re-split: preserve completed tasks, increment plan_version
+    plan_version = 1
+    plan_history = []
+    if TASKS_FILE.exists():
+        try:
+            existing = json.loads(TASKS_FILE.read_text())
+            plan_version = existing.get("plan_version", 1) + 1
+            plan_history = existing.get("plan_history", [])
+
+            # Preserve completed task statuses
+            completed_map = {}
+            for t in existing.get("tasks", []):
+                if t["status"] == "completed":
+                    completed_map[t["id"]] = t
+            for task in tasks:
+                if task["id"] in completed_map:
+                    old = completed_map[task["id"]]
+                    task["status"] = "completed"
+                    task["completed_at"] = old.get("completed_at")
+                    task["commit_sha"] = old.get("commit_sha")
+                    task["duration_seconds"] = old.get("duration_seconds")
+                    task["attempt_count"] = old.get("attempt_count", 0)
+                    task["retry_history"] = old.get("retry_history", [])
+                    task["tests_written"] = old.get("tests_written")
+                    task["tests_passed"] = old.get("tests_passed")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Add current split to plan history
+    plan_history.append({
+        "version": plan_version,
+        "timestamp": timestamp,
+        "design_path": design_path,
+        "annotation_count": len(annotations),
+    })
+
     # Build tasks.json
     tasks_data = {
+        "schema_version": "2",
         "design": design_path,
-        "created": datetime.now(timezone.utc).isoformat(),
+        "created": timestamp,
+        "plan_version": plan_version,
+        "plan_history": plan_history,
         "tasks": tasks,
     }
 
@@ -143,12 +214,18 @@ def split(design_path: str) -> dict:
         if task["depends_on"]:
             dep_chains.append(f"{task['depends_on'][0]}->{task['id']}")
 
+    files_populated = sum(1 for t in tasks if t["files"])
+
     return {
         "tasks_generated": len(tasks),
         "annotated_tasks": annotated_count,
         "total_annotations": len(annotations),
         "dependency_chain": ", ".join(dep_chains) if dep_chains else "no dependencies",
         "scopes": {s: sum(1 for t in tasks if t["scope"] == s) for s in ["S", "M", "L"]},
+        "files_populated": files_populated,
+        "file_changes_found": len(file_changes),
+        "schema_version": "2",
+        "plan_version": plan_version,
         "written_to": str(TASKS_FILE),
     }
 

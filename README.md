@@ -39,7 +39,9 @@ Research from both [Anthropic](https://www.anthropic.com/engineering/effective-h
 The LLM is a brain. Its "IQ" — the quality of its output — depends entirely on what's in its context window.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph TD
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     subgraph "LLM — The Brain"
         IQ["Output Quality<br/><i>what you actually get</i>"]
     end
@@ -65,7 +67,9 @@ You can't change the weights. But you **can** engineer what goes into the prompt
 This isn't a new idea — it's the natural evolution of how we work with LLMs:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph LR
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     subgraph HE["Harness Engineering"]
         subgraph CE["Context Engineering"]
             subgraph PE["Prompt Engineering"]
@@ -92,7 +96,9 @@ Each layer contains the previous. Prompt engineering alone can't save you from c
 ### Think of It Like Water Bottles
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph TB
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     subgraph PE_COL["Prompt Engineering"]
         direction TB
         POUR["Pour water<br/><small>craft tokens</small>"]
@@ -140,7 +146,9 @@ graph TB
 Don't one-shot the whole app. Break it into **micro-tasks** that each fit in the quality zone.
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph LR
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     subgraph BAD["One-Shot Approach"]
         direction TB
         B1["'Build me a full auth system'"] --> B2["Claude writes 2000 lines"]
@@ -171,7 +179,9 @@ Each micro-task stays well under the context budget. After each task, context ca
 Two tracks, matched to task size:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 flowchart TB
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     START(["You have a task"]) --> DECIDE{Size?}
 
     DECIDE -->|"Small<br/>(1-3 files)"| T1
@@ -221,7 +231,9 @@ flowchart TB
 Five techniques keep context utilization under 50%:
 
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph TB
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     subgraph TECHNIQUES["Context Management Arsenal"]
         direction LR
 
@@ -384,7 +396,9 @@ The hard ceiling. All five context management techniques (sub-agents, PTC, compa
 
 ### Human as Architect
 ```mermaid
+%%{init: {"theme": "base", "themeVariables": {"primaryTextColor": "#111827", "clusterTextColor": "#111827", "clusterBkg": "#f8fafc", "clusterBorder": "#e2e8f0", "lineColor": "#94a3b8", "fontFamily": "sans-serif"}}}%%
 graph TD
+    classDef default fill:#ffffff,stroke:#94a3b8,stroke-width:2px,color:#0f172a,rx:4,ry:4;
     H["Human<br/><b>Architect</b><br/><small>Final decisions, annotations,<br/>test validation</small>"]
     C["Claude<br/><b>Manager</b><br/><small>Orchestration, design,<br/>implementation</small>"]
     S["Sub-agents<br/><b>Workers</b><br/><small>Isolated research,<br/>parallel exploration</small>"]

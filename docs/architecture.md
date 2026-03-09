@@ -115,11 +115,55 @@ After implementing each micro-task, the executor runs:
 3. **Answer independently**: Check each question against actual code
 4. **Revise**: Fix any issues before marking complete
 
+## Auto-Execute Loop (`/auto`)
+
+Replaces manual `/execute` repetition with an automated loop that pauses only for human judgment:
+
+```
+LOOP:
+  select_next.py → if all_complete → auto_summary.py → STOP
+  context_tracker.py check → if 70%+ → PAUSE for /handoff
+  Read task files
+  TDD: write failing tests
+    scope M/L → PAUSE (show tests, wait for human)
+    scope S → auto-continue
+  Implement (max 2 attempts)
+  CoVe self-check
+  If 2-pass limit → PAUSE (log state, wait for human)
+  mark_complete.py + commit
+  LOOP BACK
+```
+
+HIL pause points: context budget warning, M/L test review, 2-pass limit, completion.
+
+## Context Budget Tracker
+
+`scripts/context_tracker.py` estimates context utilization per session:
+
+- Reads `claude-progress.jsonl` for session activity
+- Estimates tokens by scope (S=5k, M=15k, L=30k) + base overhead
+- Returns warning level: ok (<50%), caution (50-70%), warning (70-90%), critical (90%+)
+- Called by PreCompact hook and `/auto` loop
+
+## Tasks Schema v2
+
+`tasks.json` now includes `schema_version: "2"` with additional task fields:
+
+- `started_at`, `duration_seconds` — timing data
+- `estimated_minutes` — scope-based estimate (S=15, M=60, L=120)
+- `attempt_count`, `retry_history` — attempt tracking
+- `tests_written`, `tests_passed` — test metrics
+- `cove_findings` — Chain of Verification results
+
+Top-level additions: `plan_version`, `plan_history` for re-split tracking.
+Backward compatible — v1 files work with `.get()` defaults.
+
 ## State Recovery Protocol
 
 Any new session can reconstruct state from:
-- `claude-progress.txt` — what was done, what failed
-- `tasks.json` — task status, dependencies, commit SHAs
+- `claude-progress.txt` — what was done, what failed (text log)
+- `claude-progress.jsonl` — structured progress entries (JSON lines)
+- `tasks.json` — task status, dependencies, commit SHAs, timing, metrics
 - `git log` — actual code state
 - `workspace/designs/` — active design documents
 

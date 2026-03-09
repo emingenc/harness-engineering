@@ -23,11 +23,15 @@ def validate(tasks_path: str = "tasks.json") -> dict:
         return {"valid": False, "error": f"Invalid JSON: {e}"}
 
     issues = []
+    warnings = []
+
+    # Detect schema version
+    schema_version = data.get("schema_version", "1")
 
     # Check top-level required fields
     if "tasks" not in data:
         issues.append("Missing required field: tasks")
-        return {"valid": False, "issues": issues}
+        return {"valid": False, "issues": issues, "warnings": warnings}
 
     if "design" not in data:
         issues.append("Missing required field: design")
@@ -35,12 +39,15 @@ def validate(tasks_path: str = "tasks.json") -> dict:
     tasks = data["tasks"]
     if not isinstance(tasks, list):
         issues.append("'tasks' must be an array")
-        return {"valid": False, "issues": issues}
+        return {"valid": False, "issues": issues, "warnings": warnings}
 
     if len(tasks) == 0:
         issues.append("No tasks found")
 
     task_ids = set()
+    tasks_with_timing = 0
+    tasks_with_tests = 0
+
     for i, task in enumerate(tasks):
         # Check required fields
         for field in ["id", "title", "scope", "status", "files", "verification"]:
@@ -71,11 +78,28 @@ def validate(tasks_path: str = "tasks.json") -> dict:
             issues.append(f"Task {task_id}: verification must be an object")
         elif "command" not in verification or "expected" not in verification:
             issues.append(f"Task {task_id}: verification must have 'command' and 'expected'")
+        else:
+            # Warn on placeholder verification commands
+            if "TODO" in verification.get("command", ""):
+                warnings.append(f"Task {task_id}: verification command contains TODO placeholder")
+            if "TODO" in verification.get("expected", ""):
+                warnings.append(f"Task {task_id}: verification expected contains TODO placeholder")
+
+        # Warn on empty files arrays
+        files = task.get("files", [])
+        if isinstance(files, list) and len(files) == 0:
+            warnings.append(f"Task {task_id}: files array is empty")
 
         # Check depends_on references
         for dep in task.get("depends_on", []):
             if dep not in task_ids and dep not in [t.get("id") for t in tasks]:
                 issues.append(f"Task {task_id}: depends on unknown task '{dep}'")
+
+        # Track quality metrics
+        if task.get("duration_seconds") is not None or task.get("started_at"):
+            tasks_with_timing += 1
+        if task.get("tests_written") is not None:
+            tasks_with_tests += 1
 
     # Check for circular dependencies
     def has_cycle(task_id, visited=None, stack=None):
@@ -107,12 +131,23 @@ def validate(tasks_path: str = "tasks.json") -> dict:
         s = task.get("status", "unknown")
         status_counts[s] = status_counts.get(s, 0) + 1
 
-    return {
+    result = {
         "valid": len(issues) == 0,
+        "schema_version": schema_version,
         "task_count": len(tasks),
         "status_counts": status_counts,
         "issues": issues,
+        "warnings": warnings,
     }
+
+    # Add quality metrics for v2
+    if schema_version == "2":
+        result["quality_metrics"] = {
+            "tasks_with_timing": tasks_with_timing,
+            "tasks_with_tests": tasks_with_tests,
+        }
+
+    return result
 
 
 if __name__ == "__main__":

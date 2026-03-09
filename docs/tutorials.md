@@ -434,6 +434,100 @@ Track 1 runs independently. Your Track 2 state (`tasks.json`, progress) is untou
 
 This is read-only. It won't modify any state files or change your current task.
 
+---
+
+## Tutorial 9: Auto-Execute Loop
+
+**Scenario**: You've already split tasks and want Claude to execute them all with minimal interruption.
+
+### Step 1: Start the loop
+
+```
+> /auto
+```
+
+Claude enters an automated loop:
+1. Picks the next unblocked task
+2. Checks context budget (pauses if >70%)
+3. Writes failing tests
+   - **S-scope tasks**: auto-continues to implementation
+   - **M/L-scope tasks**: pauses to show you the tests for review
+4. Implements until tests pass (max 2 attempts)
+5. Runs CoVe self-check
+6. Marks complete and commits
+7. Loops back to step 1
+
+### What you'll see
+
+For S-scope tasks, Claude works silently and reports completion:
+```
+T001 complete (S, 8 min, commit: a1b2c3d). Continuing...
+```
+
+For M/L-scope tasks, Claude pauses:
+```
+T002 (M): Here are the failing tests I've written:
+  - test_refresh_token_rotation
+  - test_expired_refresh_rejected
+  - test_concurrent_refresh_race
+
+Approve these tests? (yes to continue, or provide feedback)
+```
+
+### When the loop pauses
+
+- **Context budget at 72%**: "Recommend running /handoff before continuing."
+- **2-Pass limit**: "2-Pass limit on T003. State logged. Recommend context clear."
+- **All complete**: Shows a summary report with duration, test counts, and CoVe findings.
+
+---
+
+## Tutorial 10: Dashboard
+
+**Scenario**: You want a visual overview of progress, dependencies, and quality metrics.
+
+```
+> /dashboard
+```
+
+Claude displays:
+
+```
+## Dependency Graph
+
+graph TD
+  T001["✓ T001: Create auth module"]:::done
+  T002["T002: Add refresh tokens"]:::active
+  T003["T003: Implement RBAC"]
+  T001 --> T002
+  T002 --> T003
+
+## Progress
+
+T001 [##########] 100% ✓ Create auth module (S)
+T002 [#####.....] 50%   Add refresh tokens (M)
+T003 [..........] 0%    Implement RBAC (M)
+
+Overall: 1/3 tasks (33%)
+
+## Velocity
+
+| Metric           | Value    |
+|------------------|----------|
+| Avg duration     | 12.5 min |
+| Est. remaining   | 85.0 min |
+
+## Quality
+
+| Metric           | Value |
+|------------------|-------|
+| Tests written    | 4     |
+| CoVe findings    | 1     |
+| 2-Pass triggers  | 0     |
+```
+
+---
+
 ### Pattern: When you disagree with the plan
 
 After `/plan`, if the design doc doesn't match your vision:

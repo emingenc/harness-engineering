@@ -2,7 +2,9 @@
 """PTC Script: validate_plan.py
 Validate a design document for completeness and size.
 
-Usage: python3 skills/planner/scripts/validate_plan.py <design.md_path>
+Usage:
+  python3 skills/planner/scripts/validate_plan.py <design.md_path>
+  python3 skills/planner/scripts/validate_plan.py <design.md_path> --diff <design2.md_path>
 """
 import json
 import re
@@ -21,6 +23,22 @@ REQUIRED_SECTIONS = [
 # Approximate tokens per word ratio
 TOKENS_PER_WORD = 1.33
 MAX_TOKENS = 30000
+
+ANNOTATION_PATTERN = re.compile(r"<!-- ANNOTATION:.*?-->")
+TASK_PATTERN = re.compile(r"^\d+\.\s+.*(?:scope|S|M|L)", re.MULTILINE)
+SECTION_PATTERN = re.compile(r"^(#{1,3})\s+(.+)$", re.MULTILINE)
+
+
+def extract_sections(content: str) -> dict[str, str]:
+    """Extract section headers and their content."""
+    sections = {}
+    matches = list(SECTION_PATTERN.finditer(content))
+    for i, match in enumerate(matches):
+        name = match.group(2).strip()
+        start = match.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        sections[name] = content[start:end].strip()
+    return sections
 
 
 def validate(design_path: str) -> dict:
@@ -87,10 +105,59 @@ def validate(design_path: str) -> dict:
     }
 
 
+def diff_designs(path1: str, path2: str) -> dict:
+    """Compare two design documents."""
+    p1 = Path(path1)
+    p2 = Path(path2)
+
+    if not p1.exists():
+        return {"error": f"File not found: {path1}"}
+    if not p2.exists():
+        return {"error": f"File not found: {path2}"}
+
+    content1 = p1.read_text()
+    content2 = p2.read_text()
+
+    sections1 = extract_sections(content1)
+    sections2 = extract_sections(content2)
+
+    annotations1 = set(ANNOTATION_PATTERN.findall(content1))
+    annotations2 = set(ANNOTATION_PATTERN.findall(content2))
+
+    tasks1 = TASK_PATTERN.findall(content1)
+    tasks2 = TASK_PATTERN.findall(content2)
+
+    all_sections = set(sections1.keys()) | set(sections2.keys())
+    added = set(sections2.keys()) - set(sections1.keys())
+    removed = set(sections1.keys()) - set(sections2.keys())
+    changed = []
+    for s in all_sections - added - removed:
+        if sections1.get(s) != sections2.get(s):
+            changed.append(s)
+
+    return {
+        "design1": path1,
+        "design2": path2,
+        "sections_added": sorted(added),
+        "sections_removed": sorted(removed),
+        "sections_changed": sorted(changed),
+        "annotation_count_delta": len(annotations2) - len(annotations1),
+        "task_count_delta": len(tasks2) - len(tasks1),
+    }
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(json.dumps({"error": "Usage: validate_plan.py <design.md_path>"}))
+        print(json.dumps({"error": "Usage: validate_plan.py <design.md_path> [--diff <design2.md>]"}))
         sys.exit(1)
 
-    result = validate(sys.argv[1])
+    if "--diff" in sys.argv:
+        idx = sys.argv.index("--diff")
+        if idx + 1 < len(sys.argv):
+            result = diff_designs(sys.argv[1], sys.argv[idx + 1])
+        else:
+            result = {"error": "--diff requires a second design path"}
+    else:
+        result = validate(sys.argv[1])
+
     print(json.dumps(result, indent=2))

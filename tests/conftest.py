@@ -96,6 +96,15 @@ def sample_tasks_json(work_dir):
 
 
 @pytest.fixture
+def sample_tasks_v2_json(work_dir):
+    """Create a valid v2 tasks.json with timing and attempt fields."""
+    data = json.loads((FIXTURES_DIR / "sample-tasks-v2.json").read_text())
+    tasks_path = work_dir / "tasks.json"
+    tasks_path.write_text(json.dumps(data, indent=2))
+    return tasks_path
+
+
+@pytest.fixture
 def empty_tasks_json(work_dir):
     """Create a tasks.json with empty tasks array."""
     data = {"design": "design.md", "created": "2026-03-08T00:00:00+00:00", "tasks": []}
@@ -114,3 +123,22 @@ def sample_progress(work_dir):
         "[2026-03-08T10:10:00Z] Completed T002: Add refresh token\n"
     )
     return progress_path
+
+
+@pytest.fixture
+def sample_progress_jsonl(work_dir):
+    """Create a claude-progress.jsonl with sample structured entries."""
+    jsonl_path = work_dir / "claude-progress.jsonl"
+    entries = [
+        {"timestamp": "2026-03-08T10:00:00Z", "action": "session_start", "message": "Session started"},
+        {"timestamp": "2026-03-08T10:05:00Z", "action": "task_complete", "task_id": "T001",
+         "phase": "execute", "track": 2, "details": {"commit_sha": "abc123"},
+         "message": "Completed T001: Create auth module"},
+        {"timestamp": "2026-03-08T10:10:00Z", "action": "task_complete", "task_id": "T002",
+         "phase": "execute", "track": 2, "details": {"commit_sha": "def456"},
+         "message": "Completed T002: Add refresh token"},
+    ]
+    with open(jsonl_path, "w") as f:
+        for entry in entries:
+            f.write(json.dumps(entry) + "\n")
+    return jsonl_path

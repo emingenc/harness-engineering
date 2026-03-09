@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """PTC Script: select_next.py
 Find the next unblocked task from tasks.json.
+Sets started_at and status to in_progress when selecting.
 Returns only that single task's metadata (~100 tokens).
 
 Usage: python3 skills/executor/scripts/select_next.py [tasks.json_path]
 """
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 TASKS_FILE = Path("tasks.json")
@@ -34,6 +36,14 @@ def select_next(tasks_path: str = "tasks.json") -> dict:
         # Check if all dependencies are completed
         deps = task.get("depends_on", [])
         if all(d in completed for d in deps):
+            # Set started_at and status to in_progress
+            timestamp = datetime.now(timezone.utc).isoformat()
+            task["status"] = "in_progress"
+            task["started_at"] = timestamp
+
+            # Write back to tasks.json
+            path.write_text(json.dumps(data, indent=2))
+
             return {
                 "task": {
                     "id": task["id"],
@@ -44,6 +54,7 @@ def select_next(tasks_path: str = "tasks.json") -> dict:
                     "verification": task["verification"],
                     "annotations": task.get("annotations", []),
                     "depends_on": deps,
+                    "estimated_minutes": task.get("estimated_minutes"),
                 },
                 "progress": {
                     "completed": len(completed),

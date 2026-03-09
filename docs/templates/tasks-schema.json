@@ -5,6 +5,11 @@
   "type": "object",
   "required": ["design", "tasks"],
   "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version (omitted or '1' for v1, '2' for v2)",
+      "default": "2"
+    },
     "design": {
       "type": "string",
       "description": "Path to the source design document"
@@ -13,6 +18,24 @@
       "type": "string",
       "format": "date-time",
       "description": "When this task list was generated"
+    },
+    "plan_version": {
+      "type": "integer",
+      "description": "Incremented on each re-split",
+      "default": 1
+    },
+    "plan_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "design_path": { "type": "string" },
+          "annotation_count": { "type": "integer" }
+        }
+      },
+      "description": "History of plan versions from re-splits"
     },
     "tasks": {
       "type": "array",
@@ -83,6 +106,57 @@
             "type": "string",
             "format": "date-time",
             "description": "When this task was completed"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this task was started (set by select_next)"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "description": "Time spent on this task in seconds"
+          },
+          "estimated_minutes": {
+            "type": "number",
+            "description": "Estimated minutes based on scope (S=15, M=60, L=120)"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "description": "Number of completion attempts",
+            "default": 0
+          },
+          "retry_history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "attempt": { "type": "integer" },
+                "timestamp": { "type": "string", "format": "date-time" },
+                "outcome": {
+                  "type": "string",
+                  "enum": ["success", "failure", "2pass_limit"]
+                },
+                "error_summary": { "type": "string" }
+              }
+            },
+            "description": "History of task attempts"
+          },
+          "failure_reason": {
+            "type": "string",
+            "description": "Reason for task failure"
+          },
+          "tests_written": {
+            "type": "integer",
+            "description": "Number of tests written for this task"
+          },
+          "tests_passed": {
+            "type": "integer",
+            "description": "Number of tests passing for this task"
+          },
+          "cove_findings": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Chain of Verification findings"
           }
         }
       }

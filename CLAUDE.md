@@ -21,6 +21,8 @@ See `docs/architecture.md` for the full two-track system.
 | `/plan` | 2 | Generate design.md, STOP for annotation |
 | `/split` | 2 | Split annotated design.md into tasks.json |
 | `/execute` | 2 | Execute one micro-task from tasks.json |
+| `/auto` | 2 | Auto-execute loop with HIL-only pauses |
+| `/dashboard` | - | Task progress dashboard with metrics |
 | `/handoff` | - | Write handoff doc for context transfer |
 | `/status` | - | Show progress overview |
 | `/verify` | - | Run verification suite |
@@ -71,8 +73,9 @@ If a bug isn't found in 2 attempts:
 
 ## State Files
 
-- `claude-progress.txt` — Append-only cross-session log
-- `tasks.json` — Active micro-task list (see `docs/templates/tasks-schema.json`)
+- `claude-progress.txt` — Append-only cross-session log (text)
+- `claude-progress.jsonl` — Structured progress log (JSON lines, dual-write)
+- `tasks.json` — Active micro-task list, schema v2 (see `docs/templates/tasks-schema.json`)
 - `workspace/designs/` — Design documents (gitignored)
 - `workspace/research/` — Research summaries (gitignored)
 
