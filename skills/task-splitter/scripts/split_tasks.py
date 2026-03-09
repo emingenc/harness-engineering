@@ -10,6 +10,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Add scripts/ to path for task_lock import
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "scripts"))
+from task_lock import TaskLockError, locked_tasks_json
+
 TASKS_FILE = Path("tasks.json")
 
 SCOPE_ESTIMATES = {"S": 15, "M": 60, "L": 120}
@@ -161,51 +165,71 @@ def split(design_path: str) -> dict:
     # Handle re-split: preserve completed tasks, increment plan_version
     plan_version = 1
     plan_history = []
+
     if TASKS_FILE.exists():
         try:
-            existing = json.loads(TASKS_FILE.read_text())
-            plan_version = existing.get("plan_version", 1) + 1
-            plan_history = existing.get("plan_history", [])
+            with locked_tasks_json(str(TASKS_FILE)) as (existing, write_back):
+                plan_version = existing.get("plan_version", 1) + 1
+                plan_history = existing.get("plan_history", [])
 
-            # Preserve completed task statuses
-            completed_map = {}
-            for t in existing.get("tasks", []):
-                if t["status"] == "completed":
-                    completed_map[t["id"]] = t
-            for task in tasks:
-                if task["id"] in completed_map:
-                    old = completed_map[task["id"]]
-                    task["status"] = "completed"
-                    task["completed_at"] = old.get("completed_at")
-                    task["commit_sha"] = old.get("commit_sha")
-                    task["duration_seconds"] = old.get("duration_seconds")
-                    task["attempt_count"] = old.get("attempt_count", 0)
-                    task["retry_history"] = old.get("retry_history", [])
-                    task["tests_written"] = old.get("tests_written")
-                    task["tests_passed"] = old.get("tests_passed")
-        except (json.JSONDecodeError, KeyError):
+                # Preserve completed task statuses
+                completed_map = {}
+                for t in existing.get("tasks", []):
+                    if t["status"] == "completed":
+                        completed_map[t["id"]] = t
+                for task in tasks:
+                    if task["id"] in completed_map:
+                        old = completed_map[task["id"]]
+                        task["status"] = "completed"
+                        task["completed_at"] = old.get("completed_at")
+                        task["commit_sha"] = old.get("commit_sha")
+                        task["duration_seconds"] = old.get("duration_seconds")
+                        task["attempt_count"] = old.get("attempt_count", 0)
+                        task["retry_history"] = old.get("retry_history", [])
+                        task["tests_written"] = old.get("tests_written")
+                        task["tests_passed"] = old.get("tests_passed")
+
+                # Add current split to plan history
+                plan_history.append({
+                    "version": plan_version,
+                    "timestamp": timestamp,
+                    "design_path": design_path,
+                    "annotation_count": len(annotations),
+                })
+
+                # Build tasks.json
+                tasks_data = {
+                    "schema_version": "2",
+                    "design": design_path,
+                    "created": timestamp,
+                    "plan_version": plan_version,
+                    "plan_history": plan_history,
+                    "tasks": tasks,
+                }
+
+                # Write tasks.json under lock
+                write_back(tasks_data)
+        except (json.JSONDecodeError, KeyError, TaskLockError):
             pass
+    else:
+        # First split — no existing file, no lock needed
+        plan_history.append({
+            "version": plan_version,
+            "timestamp": timestamp,
+            "design_path": design_path,
+            "annotation_count": len(annotations),
+        })
 
-    # Add current split to plan history
-    plan_history.append({
-        "version": plan_version,
-        "timestamp": timestamp,
-        "design_path": design_path,
-        "annotation_count": len(annotations),
-    })
+        tasks_data = {
+            "schema_version": "2",
+            "design": design_path,
+            "created": timestamp,
+            "plan_version": plan_version,
+            "plan_history": plan_history,
+            "tasks": tasks,
+        }
 
-    # Build tasks.json
-    tasks_data = {
-        "schema_version": "2",
-        "design": design_path,
-        "created": timestamp,
-        "plan_version": plan_version,
-        "plan_history": plan_history,
-        "tasks": tasks,
-    }
-
-    # Write tasks.json
-    TASKS_FILE.write_text(json.dumps(tasks_data, indent=2))
+        TASKS_FILE.write_text(json.dumps(tasks_data, indent=2))
 
     # Build dependency chain summary
     annotated_count = sum(1 for t in tasks if t["annotations"])

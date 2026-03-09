@@ -1,6 +1,8 @@
 """Tests for all PTC scripts."""
 import json
+import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -845,3 +847,109 @@ class TestScaffoldSkill:
         (work_dir / "skills" / "existing").mkdir(parents=True)
         result = run_script(self.SCRIPT, "--name", "existing", "--track", "1", cwd=str(work_dir))
         assert "error" in result
+
+
+# ─── scripts/task_lock.py (parallel safety) ──────────────────────────
+
+class TestTaskLock:
+    """Tests for parallel-safe file locking on tasks.json."""
+
+    def test_locked_read_write(self, sample_tasks_json):
+        """Basic lock acquire, read, write-back cycle."""
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from task_lock import locked_tasks_json
+
+        with locked_tasks_json(str(sample_tasks_json)) as (data, write_back):
+            assert "tasks" in data
+            assert len(data["tasks"]) == 3
+            data["tasks"][0]["status"] = "in_progress"
+            write_back(data)
+
+        # Verify write persisted
+        updated = json.loads(sample_tasks_json.read_text())
+        assert updated["tasks"][0]["status"] == "in_progress"
+
+    def test_lock_file_created(self, sample_tasks_json):
+        """Lock file .tasks.lock is created next to tasks.json."""
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from task_lock import locked_tasks_json
+
+        lock_path = sample_tasks_json.parent / ".tasks.lock"
+        assert not lock_path.exists()
+
+        with locked_tasks_json(str(sample_tasks_json)) as (data, write_back):
+            assert lock_path.exists()
+
+    def test_no_write_back_preserves_original(self, sample_tasks_json):
+        """If write_back is never called, tasks.json is unchanged."""
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from task_lock import locked_tasks_json
+
+        original = sample_tasks_json.read_text()
+        with locked_tasks_json(str(sample_tasks_json)) as (data, write_back):
+            data["tasks"][0]["status"] = "in_progress"
+            # Intentionally don't call write_back
+
+        assert sample_tasks_json.read_text() == original
+
+    def test_file_not_found_raises(self, work_dir):
+        """Missing tasks.json raises FileNotFoundError."""
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from task_lock import locked_tasks_json
+
+        with pytest.raises(FileNotFoundError):
+            with locked_tasks_json(str(work_dir / "tasks.json")) as (data, write_back):
+                pass
+
+    def test_concurrent_select_no_duplicate(self, work_dir):
+        """Two rapid select_next calls don't pick the same task."""
+        data = {
+            "design": "d.md",
+            "tasks": [
+                {"id": "T001", "title": "A", "scope": "S", "status": "pending",
+                 "depends_on": [], "files": [],
+                 "verification": {"command": "x", "expected": "y"}},
+                {"id": "T002", "title": "B", "scope": "S", "status": "pending",
+                 "depends_on": [], "files": [],
+                 "verification": {"command": "x", "expected": "y"}},
+            ],
+        }
+        (work_dir / "tasks.json").write_text(json.dumps(data))
+
+        # First select
+        r1 = run_script("skills/executor/scripts/select_next.py",
+                         str(work_dir / "tasks.json"), cwd=str(work_dir))
+        # Second select
+        r2 = run_script("skills/executor/scripts/select_next.py",
+                         str(work_dir / "tasks.json"), cwd=str(work_dir))
+
+        assert r1["task"]["id"] == "T001"
+        assert r2["task"]["id"] == "T002"
+
+    def test_worktree_path_resolution(self, work_dir):
+        """_resolve_tasks_path follows .git file to main repo."""
+        sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+        from task_lock import _resolve_tasks_path
+
+        # Simulate a worktree: .git is a file pointing to main repo
+        main_repo = work_dir / "main-repo"
+        main_repo.mkdir()
+        (main_repo / "tasks.json").write_text('{"tasks": []}')
+        (main_repo / ".git").mkdir()
+        (main_repo / ".git" / "worktrees").mkdir()
+        (main_repo / ".git" / "worktrees" / "wt1").mkdir(parents=True)
+
+        worktree = work_dir / "worktree"
+        worktree.mkdir()
+        # .git file in worktree points to main repo's worktree dir
+        gitdir_path = str(main_repo / ".git" / "worktrees" / "wt1")
+        (worktree / ".git").write_text(f"gitdir: {gitdir_path}")
+
+        import os
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(worktree)
+            resolved = _resolve_tasks_path("tasks.json")
+            assert str(resolved) == str(main_repo / "tasks.json")
+        finally:
+            os.chdir(old_cwd)

@@ -27,3 +27,7 @@ node_modules/
 
 # External memory systems (git-context-controller etc.)
 context/
+
+claude-progress.*
+.tasks.lock
+.claude/worktrees/
