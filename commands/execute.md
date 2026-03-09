@@ -15,35 +15,41 @@ allowed-tools:
 
 Follow the executor skill workflow exactly:
 
-1. **Select next task**:
+1. **Check context budget**:
+   ```bash
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/context_tracker.py check
+   ```
+   If `warning_level` is `warning` or `critical` → **STOP**: "Context budget at {utilization_percent}%. Recommend running /handoff before continuing."
+
+2. **Select next task**:
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/executor/scripts/select_next.py
    ```
    If no tasks available, tell the user. If all complete, congratulate.
 
-2. **Read task context** — only files listed in the task's `files` array.
+3. **Read task context** — only files listed in the task's `files` array.
 
-3. **TDD Gate**:
+4. **TDD Gate**:
    - Write failing tests FIRST
    - Run tests — must FAIL
    - For M/L scope: show tests to user, wait for validation
    - For S scope: proceed automatically
    - Implement until tests pass
 
-4. **Chain of Verification (CoVe)**:
+5. **Chain of Verification (CoVe)**:
    - Does this handle edge cases?
    - Is this consistent with existing patterns?
    - Does this break existing tests?
    - Security concerns?
    - Fix any issues found.
 
-5. **Mark complete**:
+6. **Mark complete**:
    ```bash
    python3 ${CLAUDE_PLUGIN_ROOT}/skills/executor/scripts/mark_complete.py \
      <task_id> --commit-sha <sha>
    ```
 
-6. **Report** what was done and suggest: "Context can be safely cleared. Run `/execute` for the next task."
+7. **Report** what was done and suggest: "Context can be safely cleared. Run `/execute` for the next task."
 
 ## 2-Pass Rule
 
