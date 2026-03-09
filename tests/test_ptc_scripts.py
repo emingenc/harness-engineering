@@ -364,6 +364,39 @@ class TestSplitTasks:
         assert data["tasks"][0]["status"] == "completed"
         assert data["tasks"][0]["commit_sha"] == "abc123"
 
+    def test_auto_verification_no_todos(self, work_dir):
+        """Verify auto-generated verifications have no TODO placeholders."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        data = json.loads((work_dir / "tasks.json").read_text())
+        for task in data["tasks"]:
+            assert "TODO" not in task["verification"]["command"], \
+                f"Task {task['id']} still has TODO verification"
+
+    def test_auto_verification_test_file_gets_pytest(self, work_dir):
+        """Task with test file in files array gets pytest command."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        data = json.loads((work_dir / "tasks.json").read_text())
+        # T001 should have tests/test_auth.py in files from file association
+        t001 = data["tasks"][0]
+        test_files = [f for f in t001["files"] if "test" in f.lower()]
+        if test_files:
+            assert "pytest" in t001["verification"]["command"]
+
+    def test_auto_verification_script_gets_compile(self, work_dir):
+        """Task with only .py script files gets py_compile command."""
+        design_path = FIXTURES_DIR / "sample-design.md"
+        run_script(self.SCRIPT, str(design_path), cwd=str(work_dir))
+        data = json.loads((work_dir / "tasks.json").read_text())
+        # Find a task with .py files but no test files
+        for task in data["tasks"]:
+            py_files = [f for f in task["files"] if f.endswith(".py")]
+            test_files = [f for f in task["files"] if "test" in f.lower()]
+            if py_files and not test_files:
+                assert "py_compile" in task["verification"]["command"]
+                break
+
 
 # ─── skills/task-splitter/scripts/validate_tasks.py ─────────────────────
 

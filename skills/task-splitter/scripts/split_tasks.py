@@ -78,6 +78,93 @@ def extract_file_changes(content: str) -> dict[str, str]:
     return files
 
 
+def extract_verification_strategy(content: str) -> list[dict]:
+    """Extract verification items from the Verification Strategy section.
+
+    Supports two formats:
+    - Table: | Check | Type | Command |
+    - Numbered list: 1. Description
+    """
+    items = []
+
+    pattern = r"(?:##?\s*Verification Strategy.*?\n)(.*?)(?=\n##?\s|\Z)"
+    match = re.search(pattern, content, re.DOTALL | re.IGNORECASE)
+    if not match:
+        return items
+
+    section = match.group(1)
+
+    # Try table format: | Check | Type | Command |
+    table_pattern = r"\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|"
+    for m in re.finditer(table_pattern, section):
+        check = m.group(1).strip()
+        vtype = m.group(2).strip()
+        command = m.group(3).strip()
+        if check and check != "Check" and not check.startswith("-"):
+            items.append({"check": check, "type": vtype, "command": command})
+
+    # If no table found, try numbered list
+    if not items:
+        list_pattern = r"^\s*\d+\.\s+(.+)$"
+        for m in re.finditer(list_pattern, section, re.MULTILINE):
+            items.append({"check": m.group(1).strip(), "type": "auto", "command": ""})
+
+    return items
+
+
+def generate_verification(task: dict, verification_items: list[dict]) -> dict:
+    """Generate a verification command for a task.
+
+    Strategy (in priority order):
+    1. Match task against verification strategy items by keyword overlap
+    2. If task has test files, generate pytest command
+    3. If task has script files, generate a run command
+    4. Fallback: grep-based existence check on modified files
+    """
+    # Try matching against verification strategy items
+    best_item = None
+    best_score = 0
+    title_words = set(task["title"].lower().split())
+    for item in verification_items:
+        check_words = set(item["check"].lower().split())
+        overlap = len(title_words & check_words)
+        if overlap > best_score:
+            best_score = overlap
+            best_item = item
+
+    if best_item and best_item.get("command"):
+        return {"command": best_item["command"], "expected": "pass"}
+
+    # Check task files for test files
+    test_files = [f for f in task["files"] if "test" in f.lower()]
+    if test_files:
+        return {
+            "command": f"python3 -m pytest {test_files[0]} -v",
+            "expected": "passed",
+        }
+
+    # Check for script files
+    script_files = [f for f in task["files"] if f.endswith(".py")]
+    if script_files:
+        return {
+            "command": f"python3 -m py_compile {script_files[0]}",
+            "expected": "exit 0",
+        }
+
+    # Check for markdown/config files
+    if task["files"]:
+        return {
+            "command": f"test -f {task['files'][0]}",
+            "expected": "exit 0",
+        }
+
+    # Fallback
+    return {
+        "command": "echo 'TODO: add verification command'",
+        "expected": "TODO: define expected output",
+    }
+
+
 def associate_files_with_tasks(tasks: list[dict], file_changes: dict[str, str]) -> list[dict]:
     """Map file changes to tasks by keyword matching against task titles."""
     for filepath, description in file_changes.items():
@@ -153,6 +240,12 @@ def split(design_path: str) -> dict:
     file_changes = extract_file_changes(content)
     if file_changes:
         tasks = associate_files_with_tasks(tasks, file_changes)
+
+    # Auto-generate verification commands
+    verification_items = extract_verification_strategy(content)
+    for task in tasks:
+        verification = generate_verification(task, verification_items)
+        task["verification"] = verification
 
     # Build dependencies
     tasks = build_dependencies(tasks)
