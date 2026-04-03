@@ -110,6 +110,26 @@ If a bug isn't found in 2 attempts:
 
 See `docs/conventions.md` for commit style, naming, and code patterns.
 
+## AI Communication Principles
+
+See `~/harness-workflow/principles/CLAUDE.md` for full principles. Key rules:
+
+- **Concise always.** Sacrifice grammar for brevity. Short beats long.
+- **End-of-plan questions.** At the end of every plan, list unresolved questions:
+  ```
+  Unresolved:
+  1. [question]
+  2. [question]
+  ```
+- **Ask on the road.** Questions during work → ask immediately. Don't batch.
+- **Context overflow** → make the plan multi-phase.
+
+## Architecture Principles
+
+- **Deep modules > shallow.** Small interface, large implementation.
+- If codebase is garbage, AI produces garbage in it.
+- Explore like AI would — friction IS the signal.
+
 ## Templates
 
 - `docs/templates/design-template.md` — Track 2 design doc
